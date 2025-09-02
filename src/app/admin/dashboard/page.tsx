@@ -88,8 +88,7 @@ export default function AdminDashboard() {
       shipped: "outline",
       pending: "destructive",
       active: "default",
-      inactive: "secondary",
-      "pending": "destructive"
+      inactive: "secondary"
     }
     return <Badge variant={variants[status as keyof typeof variants] as any}>{status}</Badge>
   }
