@@ -1,0 +1,10 @@
+backend/
+nginx/
+docker-compose.yml
+Dockerfile
+*.md
+.git/
+.gitignore
+*.bat
+*.ps1
+compose.*.yaml
