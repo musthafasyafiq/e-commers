@@ -117,3 +117,6 @@ coverage/
 # Cache
 .cache/
 .parcel-cache/
+
+# Ignore backend for frontend-only builds
+backend/

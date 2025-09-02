@@ -8,3 +8,4 @@ Dockerfile
 *.bat
 *.ps1
 compose.*.yaml
+backend/**/*
