@@ -6,15 +6,20 @@ import { useRouter } from "next/navigation"
 import { Search, ShoppingCart, User, Menu, Heart, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { UserNav } from "@/components/layout/user-nav"
-import { CartSheet } from "@/components/cart/cart-sheet"
-import { MobileNav } from "@/components/layout/mobile-nav"
+import { Badge } from "@/components/ui/badge"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { UserNav } from "./user-nav"
+import { MobileNav } from "./mobile-nav"
+import { ThemeToggle } from "../theme-toggle"
+import { LanguageSwitcher } from "../language-switcher"
+import { useTranslation } from "@/hooks/use-translation"
+import { CartSheet } from "../cart/cart-sheet"
 
 export function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
+  const { t } = useTranslation()
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,7 +48,7 @@ export function Header() {
             href="/categories"
             className="transition-colors hover:text-foreground/80 text-foreground/60"
           >
-            Categories
+            {t('categories.title')}
           </Link>
           <Link
             href="/deals"
@@ -72,7 +77,7 @@ export function Header() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search products..."
+                placeholder={t('common.search')}
                 className="pl-10 pr-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -83,6 +88,7 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center space-x-2">
+          <LanguageSwitcher />
           <ThemeToggle />
           
           <Button variant="ghost" size="icon" className="relative">

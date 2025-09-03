@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, ShoppingBag, Star } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShoppingBag, Star, ArrowRight, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+import { useTranslation } from "@/hooks/use-translation"
 
 const heroSlides = [
   {
@@ -39,6 +40,7 @@ const heroSlides = [
 
 export function Hero() {
   const [currentSlide, setCurrentSlide] = useState(0)
+  const { t } = useTranslation()
 
   useEffect(() => {
     const timer = setInterval(() => {
