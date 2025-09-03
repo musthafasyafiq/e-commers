@@ -1,9 +1,20 @@
 "use client"
 
-import Image from "next/image"
-import Link from "next/link"
-import { motion } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { 
+  Smartphone, 
+  Shirt, 
+  Home, 
+  Book, 
+  Dumbbell, 
+  Sparkles,
+  ArrowRight 
+} from "lucide-react"
+import Link from "next/link"
+import Image from "next/image"
+import { motion } from "framer-motion"
+import { useTranslation } from "@/hooks/use-translation"
 
 const categories = [
   {
@@ -51,13 +62,15 @@ const categories = [
 ]
 
 export function Categories() {
+  const { t } = useTranslation()
+  
   return (
-    <section className="py-16 bg-background">
+    <section className="py-16 bg-muted/50">
       <div className="container">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Shop by Category</h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Discover our wide range of products across different categories
+          <h2 className="text-3xl font-bold mb-4">{t('categories.title')}</h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Explore our wide range of products across different categories
           </p>
         </div>
 

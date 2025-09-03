@@ -110,6 +110,15 @@ export const translations: Record<Locale, Record<string, string>> = {
     'footer.newsletter': 'Subscribe to Newsletter',
     'footer.newsletter_text': 'Get updates on new products and offers',
     'footer.subscribe': 'Subscribe',
+    
+    // Flash Sale
+    'flash_sale.title': 'Flash Sale',
+    'flash_sale.subtitle': 'Limited time offers',
+    'flash_sale.ends_in': 'Ends in',
+    'flash_sale.days': 'Days',
+    'flash_sale.hours': 'Hours',
+    'flash_sale.minutes': 'Minutes',
+    'flash_sale.seconds': 'Seconds',
   },
   
   id: {
@@ -221,6 +230,15 @@ export const translations: Record<Locale, Record<string, string>> = {
     'footer.newsletter': 'Berlangganan Newsletter',
     'footer.newsletter_text': 'Dapatkan update produk baru dan penawaran',
     'footer.subscribe': 'Berlangganan',
+    
+    // Flash Sale
+    'flash_sale.title': 'Flash Sale',
+    'flash_sale.subtitle': 'Penawaran terbatas',
+    'flash_sale.ends_in': 'Berakhir dalam',
+    'flash_sale.days': 'Hari',
+    'flash_sale.hours': 'Jam',
+    'flash_sale.minutes': 'Menit',
+    'flash_sale.seconds': 'Detik',
   }
 }
 

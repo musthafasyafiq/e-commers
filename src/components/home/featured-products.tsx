@@ -1,12 +1,14 @@
 "use client"
 
 import Image from "next/image"
-import Link from "next/link"
-import { Star, Heart, ShoppingCart } from "lucide-react"
+import { useState } from "react"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Star, ShoppingCart, Heart, Eye } from "lucide-react"
+import Link from "next/link"
 import { formatPrice } from "@/lib/utils"
+import { useTranslation } from "@/hooks/use-translation"
 import { motion } from "framer-motion"
 
 const featuredProducts = [
@@ -101,11 +103,22 @@ const featuredProducts = [
 ]
 
 export function FeaturedProducts() {
+  const [favorites, setFavorites] = useState<number[]>([])
+  const { t } = useTranslation()
+
+  const toggleFavorite = (productId: number) => {
+    setFavorites(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    )
+  }
+
   return (
     <section className="py-16 bg-background">
       <div className="container">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Featured Products</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('products.title')}</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Discover our handpicked selection of premium products
           </p>
