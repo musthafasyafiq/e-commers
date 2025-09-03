@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, createContext, useContext } from 'react'
+import React, { useState, useEffect, createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
 import { authService, type User, type AuthState } from '@/lib/auth'
 
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await authService.checkUserExists(email)
   }
 
-  const contextValue = {
+  const contextValue: AuthContextType = {
     user: authState.user,
     isLoading: authState.isLoading,
     isAuthenticated: authState.isAuthenticated,
@@ -136,10 +136,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     completeOTPVerification
   }
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+  return React.createElement(
+    AuthContext.Provider,
+    { value: contextValue },
+    children
   )
 }
 
