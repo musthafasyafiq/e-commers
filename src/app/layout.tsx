@@ -2,17 +2,14 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthProvider } from '@/hooks/use-auth'
 import { Toaster } from '@/components/ui/toaster'
-import { AuthProvider } from '@/components/auth-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Modern E-Commerce - Premium Shopping Experience',
-  description: 'Discover amazing products with our modern, elegant e-commerce platform',
-  keywords: 'ecommerce, shopping, online store, marketplace',
-  authors: [{ name: 'Modern E-Commerce Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+  title: 'Modern E-Commerce',
+  description: 'A modern e-commerce platform built with Next.js',
 }
 
 export default function RootLayout({
@@ -21,11 +18,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >

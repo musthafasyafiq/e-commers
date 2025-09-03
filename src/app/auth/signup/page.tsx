@@ -1,16 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { useTranslation } from "@/hooks/use-translation"
 import { useToast } from "@/hooks/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
 import { motion } from "framer-motion"
 
 export default function SignUpPage() {
@@ -27,6 +29,8 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { signUp } = useAuth()
+  const { t } = useTranslation()
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,42 +55,26 @@ export default function SignUpPage() {
     }
 
     setIsLoading(true)
-
+    
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password,
-        }),
+      await signUp({
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone
       })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        toast({
-          title: "Registration successful!",
-          description: "Please check your email and phone for verification codes",
-        })
-        router.push("/auth/verify")
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Registration failed",
-          description: data.message || "Something went wrong",
-        })
-      }
+      
+      toast({
+        title: "Registration successful!",
+        description: "Welcome to our platform!",
+      })
+      
+      // Auto-redirect handled by signUp function
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Network error. Please try again.",
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : "Please try again",
       })
     } finally {
       setIsLoading(false)
