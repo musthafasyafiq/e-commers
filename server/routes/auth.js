@@ -4,189 +4,175 @@ const User = require('../models/User');
 const OTP = require('../models/OTP');
 const { sendOTPEmail } = require('../config/email');
 
-// Send OTP endpoint
+// Send OTP for signup or signin
 router.post('/send-otp', async (req, res) => {
   try {
-    const { email, type = 'signin' } = req.body;
+    const { email, type = 'signin', name, phone } = req.body;
 
-    // Validate email
+    // Validate required fields
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Email wajib diisi'
+        message: 'Email is required'
       });
     }
 
-    // Email validation regex
+    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Format email tidak valid'
+        message: 'Please enter a valid email address'
       });
     }
 
-    // Check if user exists (for signin) or doesn't exist (for signup)
-    const existingUser = await User.findByEmail(email);
+    // For signup, check if user already exists
+    if (type === 'signup') {
+      const existingUser = await User.findByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'User already exists with this email'
+        });
+      }
+      
+      // Validate signup fields
+      if (!name || name.trim().length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: 'Name is required and must be at least 2 characters'
+        });
+      }
+    }
+
+    // For signin, check if user exists
+    if (type === 'signin') {
+      const user = await User.findByEmail(email);
+      if (!user) {
+        return res.status(400).json({
+          success: false,
+          message: 'No account found with this email'
+        });
+      }
+    }
+
+    // Generate and save OTP
+    const otpData = await OTP.create(email, type);
     
-    if (type === 'signin' && !existingUser) {
-      return res.status(404).json({
-        success: false,
-        message: 'Email tidak terdaftar. Silakan daftar terlebih dahulu.'
-      });
-    }
-
-    if (type === 'signup' && existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: 'Email sudah terdaftar. Silakan gunakan email lain atau masuk ke akun Anda.'
-      });
-    }
-
-    // Create OTP
-    const userId = existingUser ? existingUser.id : null;
-    const otpData = await OTP.create(email, userId, type);
-
     // Send OTP via email
-    await sendOTPEmail(email, otpData.code);
-
-    // Log the attempt
-    console.log(`📧 OTP sent to ${email} (${type}): ${otpData.code}`);
-
+    await sendOTPEmail(email, otpData.code, name || 'User');
+    
     res.json({
       success: true,
-      message: 'Kode OTP telah dikirim ke email Anda. Periksa kotak masuk dan folder spam.',
-      data: {
-        email,
-        expiresIn: '5 menit',
-        type
-      }
+      message: `OTP sent successfully to ${email}`,
+      expiresAt: otpData.expiresAt
     });
 
   } catch (error) {
-    console.error('❌ Send OTP Error:', error.message);
+    console.error('Send OTP error:', error);
+    
+    // Handle rate limiting error
+    if (error.message.includes('Too many OTP requests')) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many OTP requests. Please wait before requesting again.'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Gagal mengirim kode OTP. Silakan coba lagi.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Failed to send OTP. Please try again.'
     });
   }
 });
 
-// Verify OTP endpoint
+// Verify OTP and complete signup/signin
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { email, otp, type = 'signin' } = req.body;
+    const { email, code, type = 'signin', name, phone, password } = req.body;
 
-    // Validate input
-    if (!email || !otp) {
+    // Validate required fields
+    if (!email || !code) {
       return res.status(400).json({
         success: false,
-        message: 'Email dan kode OTP wajib diisi'
+        message: 'Email and OTP code are required'
       });
     }
 
-    // Validate OTP format (6 digits)
-    if (!/^\d{6}$/.test(otp)) {
+    // Validate OTP code format (6 digits)
+    if (!/^\d{6}$/.test(code)) {
       return res.status(400).json({
         success: false,
-        message: 'Kode OTP harus 6 digit angka'
+        message: 'OTP code must be 6 digits'
       });
     }
 
-    // Verify OTP with attempt tracking
-    const verificationResult = await OTP.verifyWithAttempts(email, otp);
-
-    if (!verificationResult.success) {
-      const statusCode = verificationResult.shouldBlock ? 429 : 400;
-      
-      return res.status(statusCode).json({
-        success: false,
-        message: verificationResult.message,
-        data: {
-          attemptsLeft: verificationResult.attemptsLeft,
-          shouldRequestNewOTP: verificationResult.shouldBlock
-        }
-      });
-    }
-
-    // OTP is valid - handle different types
-    const user = await User.findByEmail(email);
+    // Verify OTP
+    const otpResult = await OTP.verify(email, code, type);
     
-    if (type === 'signin') {
-      if (!user) {
-        return res.status(404).json({
+    if (!otpResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: otpResult.message
+      });
+    }
+
+    let user;
+    
+    if (type === 'signup') {
+      // Create new user
+      if (!name || name.trim().length < 2) {
+        return res.status(400).json({
           success: false,
-          message: 'User tidak ditemukan'
+          message: 'Name is required and must be at least 2 characters'
         });
       }
-
+      
+      user = await User.create({
+        name: name.trim(),
+        email,
+        phone,
+        password // Can be null for OTP-only signup
+      });
+      
+      // Mark user as verified
+      await User.verifyUser(email);
+      
+    } else if (type === 'signin') {
+      // Get existing user
+      user = await User.findByEmail(email);
+      if (!user) {
+        return res.status(400).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+      
       // Mark user as verified if not already
       if (!user.is_verified) {
-        await User.verifyUser(user.id);
+        await User.verifyUser(email);
       }
-
-      res.json({
-        success: true,
-        message: 'Login berhasil!',
-        data: {
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            is_verified: true
-          },
-          type: 'signin'
-        }
-      });
-
-    } else if (type === 'signup') {
-      // For signup, the user should be created separately
-      // This endpoint just verifies the email
-      res.json({
-        success: true,
-        message: 'Email berhasil diverifikasi!',
-        data: {
-          email,
-          verified: true,
-          type: 'signup'
-        }
-      });
-
-    } else if (type === 'reset_password') {
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User tidak ditemukan'
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Kode OTP valid. Anda dapat mengatur ulang password.',
-        data: {
-          email,
-          canResetPassword: true,
-          type: 'reset_password'
-        }
-      });
     }
 
-    // Log successful verification
-    console.log(`✅ OTP verified for ${email} (${type})`);
+    // Get user profile (without sensitive data)
+    const userProfile = await User.getProfile(email);
+    
+    res.json({
+      success: true,
+      message: `${type === 'signup' ? 'Account created' : 'Signed in'} successfully`,
+      user: userProfile
+    });
 
   } catch (error) {
-    console.error('❌ Verify OTP Error:', error.message);
+    console.error('Verify OTP error:', error);
     res.status(500).json({
       success: false,
-      message: 'Gagal memverifikasi kode OTP. Silakan coba lagi.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Failed to verify OTP. Please try again.'
     });
   }
 });
 
-// Resend OTP endpoint
+// Resend OTP
 router.post('/resend-otp', async (req, res) => {
   try {
     const { email, type = 'signin' } = req.body;
@@ -194,69 +180,62 @@ router.post('/resend-otp', async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Email wajib diisi'
+        message: 'Email is required'
       });
     }
 
-    // Check rate limiting (optional - prevent spam)
-    // You can implement Redis-based rate limiting here
+    // Check if user can request new OTP (rate limiting)
+    const canRequest = await OTP.canRequestOTP(email, type);
+    if (!canRequest) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many OTP requests. Please wait before requesting again.'
+      });
+    }
 
-    // Get user if exists
-    const user = await User.findByEmail(email);
-    const userId = user ? user.id : null;
-
-    // Create new OTP
-    const otpData = await OTP.create(email, userId, type);
-
+    // Generate new OTP
+    const otpData = await OTP.create(email, type);
+    
+    // Get user name for email
+    let userName = 'User';
+    if (type === 'signin') {
+      const user = await User.findByEmail(email);
+      if (user) userName = user.name;
+    }
+    
     // Send OTP via email
-    await sendOTPEmail(email, otpData.code);
-
-    console.log(`🔄 OTP resent to ${email} (${type}): ${otpData.code}`);
-
+    await sendOTPEmail(email, otpData.code, userName);
+    
     res.json({
       success: true,
-      message: 'Kode OTP baru telah dikirim ke email Anda.',
-      data: {
-        email,
-        expiresIn: '5 menit',
-        type
-      }
+      message: `New OTP sent successfully to ${email}`,
+      expiresAt: otpData.expiresAt
     });
 
   } catch (error) {
-    console.error('❌ Resend OTP Error:', error.message);
+    console.error('Resend OTP error:', error);
     res.status(500).json({
       success: false,
-      message: 'Gagal mengirim ulang kode OTP. Silakan coba lagi.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Failed to resend OTP. Please try again.'
     });
   }
 });
 
-// Get OTP stats (for monitoring/debugging)
+// Get OTP statistics (for monitoring)
 router.get('/otp-stats/:email', async (req, res) => {
   try {
     const { email } = req.params;
-    
-    if (process.env.NODE_ENV !== 'development') {
-      return res.status(403).json({
-        success: false,
-        message: 'Endpoint hanya tersedia dalam mode development'
-      });
-    }
-
     const stats = await OTP.getStats(email);
     
     res.json({
       success: true,
-      data: stats
+      stats
     });
-
   } catch (error) {
-    console.error('❌ OTP Stats Error:', error.message);
+    console.error('OTP stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Gagal mengambil statistik OTP'
+      message: 'Failed to get OTP statistics'
     });
   }
 });

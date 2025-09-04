@@ -156,7 +156,7 @@ export function Navbar() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSignOut}>
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
+                      <span>Keluar</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -164,10 +164,10 @@ export function Navbar() {
             ) : (
               <div className="flex items-center space-x-2">
                 <Button variant="ghost" asChild>
-                  <Link href="/auth/signin">Sign In</Link>
+                  <Link href="/login">Masuk</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/auth/signup">Sign Up</Link>
+                  <Link href="/signup">Daftar</Link>
                 </Button>
               </div>
             )}
@@ -217,6 +217,15 @@ export function Navbar() {
                         <span>Keranjang ({cartItemCount})</span>
                       </Link>
                       
+                      <Link
+                        href="/settings"
+                        className="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors py-2"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <Settings className="h-5 w-5" />
+                        <span>Settings</span>
+                      </Link>
+                      
                       <div className="pt-4 border-t">
                         <Button 
                           variant="ghost" 
@@ -224,20 +233,20 @@ export function Navbar() {
                           onClick={handleSignOut}
                         >
                           <LogOut className="mr-2 h-4 w-4" />
-                          Sign out
+                          Keluar
                         </Button>
                       </div>
                     </>
                   ) : (
                     <div className="space-y-2">
                       <Button variant="ghost" className="w-full" asChild>
-                        <Link href="/auth/signin" onClick={() => setIsMobileMenuOpen(false)}>
-                          Sign In
+                        <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                          Masuk
                         </Link>
                       </Button>
                       <Button className="w-full" asChild>
-                        <Link href="/auth/signup" onClick={() => setIsMobileMenuOpen(false)}>
-                          Sign Up
+                        <Link href="/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                          Daftar
                         </Link>
                       </Button>
                     </div>

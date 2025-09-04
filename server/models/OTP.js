@@ -1,4 +1,4 @@
-const { pool } = require('../config/database');
+const db = require('../config/database');
 
 class OTP {
   // Generate 6-digit OTP
@@ -6,208 +6,210 @@ class OTP {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  // Create new OTP record
-  static async create(email, userId = null, type = 'signin') {
-    const code = this.generateOTP();
-    const expiredAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
-    
+  // Create OTP record
+  static async create(email, type = 'signin') {
     try {
-      // Deactivate any existing OTP for this email
-      await pool.execute(
-        'UPDATE otp_codes SET is_used = TRUE WHERE email = ? AND is_used = FALSE',
-        [email]
-      );
+      // Check rate limiting first
+      const canRequest = await this.canRequestOTP(email, type);
+      if (!canRequest) {
+        throw new Error('Too many OTP requests. Please wait before requesting again.');
+      }
+
+      // Invalidate any existing OTP for this email and type
+      await this.invalidateExisting(email, type);
       
-      const [result] = await pool.execute(
-        'INSERT INTO otp_codes (user_id, email, code, type, expired_at) VALUES (?, ?, ?, ?, ?)',
-        [userId, email, code, type, expiredAt]
+      const code = this.generateOTP();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+      
+      const [result] = await db.execute(
+        'INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)',
+        [email, code, type, expiresAt]
       );
       
       return {
         id: result.insertId,
         code,
-        expiredAt
+        expiresAt,
+        email,
+        type
       };
     } catch (error) {
-      throw new Error('Database error: ' + error.message);
+      console.error('Error creating OTP:', error);
+      throw error;
     }
   }
 
-  // Verify OTP code
-  static async verify(email, code) {
+  // Verify OTP
+  static async verify(email, code, type = 'signin') {
     try {
-      const [rows] = await pool.execute(
+      // Get the OTP record
+      const [rows] = await db.execute(
         `SELECT * FROM otp_codes 
-         WHERE email = ? AND code = ? AND is_used = FALSE AND is_blocked = FALSE 
+         WHERE email = ? AND code = ? AND type = ? 
+         AND is_used = FALSE AND is_blocked = FALSE 
          ORDER BY created_at DESC LIMIT 1`,
-        [email, code]
+        [email, code, type]
       );
-
-      if (!rows.length) {
-        return { 
-          success: false, 
-          message: 'Kode OTP tidak valid atau sudah digunakan',
-          shouldBlock: false 
-        };
+      
+      if (rows.length === 0) {
+        return { success: false, message: 'Invalid OTP code' };
       }
-
+      
       const otpRecord = rows[0];
       
-      // Check if expired
-      if (new Date(otpRecord.expired_at) < new Date()) {
+      // Check if OTP has expired
+      if (new Date() > new Date(otpRecord.expires_at)) {
         await this.markAsUsed(otpRecord.id);
-        return { 
-          success: false, 
-          message: 'Kode OTP sudah kadaluarsa',
-          shouldBlock: false 
-        };
+        return { success: false, message: 'OTP has expired' };
       }
-
-      // Mark as used
-      await this.markAsUsed(otpRecord.id);
+      
+      // Check attempt limit before incrementing
+      if (otpRecord.attempts >= otpRecord.max_attempts) {
+        await this.blockOTP(otpRecord.id);
+        return { success: false, message: 'Too many attempts. OTP blocked.' };
+      }
+      
+      // Increment attempts first
+      await db.execute(
+        'UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?',
+        [otpRecord.id]
+      );
+      
+      // Check if this was the last allowed attempt
+      if (otpRecord.attempts + 1 >= otpRecord.max_attempts) {
+        await this.blockOTP(otpRecord.id);
+      } else {
+        // Mark as used only if verification is successful
+        await this.markAsUsed(otpRecord.id);
+      }
       
       return { 
         success: true, 
-        message: 'Kode OTP valid',
-        otpRecord,
-        shouldBlock: false 
+        message: 'OTP verified successfully',
+        otpId: otpRecord.id,
+        email: otpRecord.email,
+        type: otpRecord.type
       };
       
     } catch (error) {
-      throw new Error('Database error: ' + error.message);
-    }
-  }
-
-  // Verify OTP with attempt tracking
-  static async verifyWithAttempts(email, code) {
-    try {
-      // Get latest OTP record for this email
-      const [rows] = await pool.execute(
-        `SELECT * FROM otp_codes 
-         WHERE email = ? AND is_used = FALSE AND is_blocked = FALSE 
-         ORDER BY created_at DESC LIMIT 1`,
-        [email]
-      );
-
-      if (!rows.length) {
-        return { 
-          success: false, 
-          message: 'Tidak ada kode OTP aktif untuk email ini',
-          shouldBlock: false,
-          attemptsLeft: 0
-        };
-      }
-
-      const otpRecord = rows[0];
-      
-      // Check if expired
-      if (new Date(otpRecord.expired_at) < new Date()) {
-        await this.markAsUsed(otpRecord.id);
-        return { 
-          success: false, 
-          message: 'Kode OTP sudah kadaluarsa',
-          shouldBlock: false,
-          attemptsLeft: 0
-        };
-      }
-
-      // Increment attempts
-      const newAttempts = otpRecord.attempts + 1;
-      await pool.execute(
-        'UPDATE otp_codes SET attempts = ? WHERE id = ?',
-        [newAttempts, otpRecord.id]
-      );
-
-      // Check if code is correct
-      if (otpRecord.code === code) {
-        await this.markAsUsed(otpRecord.id);
-        return { 
-          success: true, 
-          message: 'Kode OTP valid',
-          otpRecord,
-          shouldBlock: false,
-          attemptsLeft: otpRecord.max_attempts - newAttempts
-        };
-      }
-
-      // Wrong code - check if should block
-      const attemptsLeft = otpRecord.max_attempts - newAttempts;
-      
-      if (attemptsLeft <= 0) {
-        // Block this OTP after max attempts
-        await this.blockOTP(otpRecord.id);
-        return { 
-          success: false, 
-          message: 'Kode OTP salah. Anda telah mencapai batas maksimal percobaan. Silakan minta kode baru.',
-          shouldBlock: true,
-          attemptsLeft: 0
-        };
-      }
-
-      return { 
-        success: false, 
-        message: `Kode OTP salah. Sisa percobaan: ${attemptsLeft}`,
-        shouldBlock: false,
-        attemptsLeft
-      };
-      
-    } catch (error) {
-      throw new Error('Database error: ' + error.message);
+      console.error('Error verifying OTP:', error);
+      throw error;
     }
   }
 
   // Mark OTP as used
   static async markAsUsed(otpId) {
     try {
-      await pool.execute(
+      await db.execute(
         'UPDATE otp_codes SET is_used = TRUE WHERE id = ?',
         [otpId]
       );
     } catch (error) {
-      throw new Error('Database error: ' + error.message);
+      console.error('Error marking OTP as used:', error);
+      throw error;
     }
   }
 
-  // Block OTP after max attempts
+  // Block OTP (too many attempts)
   static async blockOTP(otpId) {
     try {
-      await pool.execute(
-        'UPDATE otp_codes SET is_blocked = TRUE, is_used = TRUE WHERE id = ?',
+      await db.execute(
+        'UPDATE otp_codes SET is_blocked = TRUE WHERE id = ?',
         [otpId]
       );
     } catch (error) {
-      throw new Error('Database error: ' + error.message);
+      console.error('Error blocking OTP:', error);
+      throw error;
     }
   }
 
-  // Clean up expired OTPs
+  // Invalidate existing OTPs for email and type
+  static async invalidateExisting(email, type) {
+    try {
+      await db.execute(
+        'UPDATE otp_codes SET is_used = TRUE WHERE email = ? AND type = ? AND is_used = FALSE',
+        [email, type]
+      );
+    } catch (error) {
+      console.error('Error invalidating existing OTPs:', error);
+      throw error;
+    }
+  }
+
+  // Clean up expired OTPs (should be run periodically)
   static async cleanupExpired() {
     try {
-      const [result] = await pool.execute(
-        'DELETE FROM otp_codes WHERE expired_at < NOW() AND is_used = FALSE'
+      const [result] = await db.execute(
+        'DELETE FROM otp_codes WHERE expires_at < NOW() AND is_used = FALSE'
       );
-      console.log(`🧹 Cleaned up ${result.affectedRows} expired OTP codes`);
       return result.affectedRows;
     } catch (error) {
-      console.error('Error cleaning up expired OTPs:', error.message);
+      console.error('Error cleaning up expired OTPs:', error);
+      throw error;
     }
   }
 
-  // Get OTP statistics for monitoring
+  // Get OTP statistics
   static async getStats(email) {
     try {
-      const [rows] = await pool.execute(
+      const [rows] = await db.execute(
         `SELECT 
-          COUNT(*) as total_otps,
-          SUM(CASE WHEN is_used = TRUE THEN 1 ELSE 0 END) as used_otps,
-          SUM(CASE WHEN is_blocked = TRUE THEN 1 ELSE 0 END) as blocked_otps,
-          SUM(CASE WHEN expired_at < NOW() THEN 1 ELSE 0 END) as expired_otps
-         FROM otp_codes WHERE email = ?`,
+           COUNT(*) as total_otps,
+           COUNT(CASE WHEN is_used = TRUE THEN 1 END) as used_otps,
+           COUNT(CASE WHEN is_blocked = TRUE THEN 1 END) as blocked_otps,
+           COUNT(CASE WHEN expires_at < NOW() THEN 1 END) as expired_otps
+         FROM otp_codes 
+         WHERE email = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
         [email]
       );
-      return rows[0];
+      
+      return rows[0] || {
+        total_otps: 0,
+        used_otps: 0,
+        blocked_otps: 0,
+        expired_otps: 0
+      };
     } catch (error) {
-      throw new Error('Database error: ' + error.message);
+      console.error('Error getting OTP stats:', error);
+      throw error;
+    }
+  }
+
+  // Check if user can request new OTP (rate limiting)
+  static async canRequestOTP(email, type = 'signin') {
+    try {
+      const [rows] = await db.execute(
+        `SELECT COUNT(*) as recent_otps 
+         FROM otp_codes 
+         WHERE email = ? AND type = ? 
+         AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)`,
+        [email, type]
+      );
+      
+      const recentOTPs = rows[0].recent_otps;
+      return recentOTPs < 3; // Max 3 OTPs per minute
+    } catch (error) {
+      console.error('Error checking OTP rate limit:', error);
+      throw error;
+    }
+  }
+
+  // Get active OTP for email and type
+  static async getActiveOTP(email, type = 'signin') {
+    try {
+      const [rows] = await db.execute(
+        `SELECT * FROM otp_codes 
+         WHERE email = ? AND type = ? 
+         AND is_used = FALSE AND is_blocked = FALSE 
+         AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [email, type]
+      );
+      
+      return rows[0] || null;
+    } catch (error) {
+      console.error('Error getting active OTP:', error);
+      throw error;
     }
   }
 }

@@ -3,20 +3,19 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react"
+import { Mail, ArrowLeft, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-export default function ResetPasswordPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState('')
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,24 +34,11 @@ export default function ResetPasswordPage() {
     setError('')
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email.toLowerCase() }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setIsSuccess(true)
-      } else {
-        setError(data.message || 'Terjadi kesalahan. Silakan coba lagi.')
-      }
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setIsSuccess(true)
     } catch (error) {
-      console.error('Reset password error:', error)
-      setError('Terjadi kesalahan jaringan. Silakan coba lagi.')
+      setError('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsLoading(false)
     }
@@ -87,7 +73,7 @@ export default function ResetPasswordPage() {
           <div className="mx-auto w-12 h-12 bg-primary rounded-full flex items-center justify-center mb-4">
             <Mail className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+          <CardTitle className="text-2xl font-bold">Lupa Password?</CardTitle>
           <CardDescription>
             Masukkan email Anda dan kami akan mengirimkan link untuk reset password
           </CardDescription>
@@ -96,7 +82,6 @@ export default function ResetPasswordPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive" className="rounded-xl">
-                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
