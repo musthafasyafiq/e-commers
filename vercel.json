@@ -1,6 +1,1 @@
-{
-  "framework": "nextjs",
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://your-backend-api.herokuapp.com"
-  }
-}
+{}
